@@ -1,0 +1,41 @@
+version: "1"
+
+secrets:
+  - name: docker_username
+    type: org
+    key: tmapes/docker_username
+    engine: native
+  - name: docker_password
+    type: org
+    key: tmapes/docker_password
+    engine: native
+
+steps:
+  - name: build
+    image: golang:1.22.4-alpine
+    commands:
+      - go build cmd/pihole-influx-exporter
+      - ls -lah
+
+  - name: snapshot-build-docker
+    image: target/vela-kaniko:v0.17.0@sha256:56d8499175eb5a1b5342a86f706b87bff89878d2e5a5d835dcb9ffaa21836d19
+    secrets: [ docker_username, docker_password ]
+    parameters:
+      registry: https://index.docker.io/v1/
+      repo: tjmapes/pihole-metrics-go
+      tags:
+        - "b${VELA_BUILD_NUMBER}-${VELA_BUILD_COMMIT:0:8}"
+    ruleset:
+      branch: main
+      event: push
+
+  - name: release-build-docker
+    image: target/vela-kaniko:v0.17.0@sha256:56d8499175eb5a1b5342a86f706b87bff89878d2e5a5d835dcb9ffaa21836d19
+    secrets: [ docker_username, docker_password ]
+    parameters:
+      registry: https://index.docker.io/v1/
+      repo: tjmapes/pihole-metrics-go
+      tags:
+        - "${VELA_BUILD_TAG:##v}"
+    ruleset:
+      event: tag
