@@ -13,9 +13,12 @@ secrets:
 steps:
   - name: build
     image: golang:1.22.4-alpine
+    environment:
+      CGO_ENABLED: "0"
+      GOOS: linux
     commands:
       - go build ./cmd/pihole-influx-exporter
-      - ls -lah
+      - ls -lh pihole-influx-exporter
 
   - name: snapshot-build-docker
     image: target/vela-kaniko:v0.17.0@sha256:56d8499175eb5a1b5342a86f706b87bff89878d2e5a5d835dcb9ffaa21836d19
