@@ -12,6 +12,7 @@ A few environment variables are required to get this up and running.
 | Name               | Default                 | Required | Description                                         |
 |--------------------|-------------------------|----------|-----------------------------------------------------|
 | PI_HOLE_HOST       | `http://pi.hole`        | Yes      | Hostname & Port of your PiHole                      |
+| PI_HOLE_HOST_TAG   | <value of PI_HOLE_HOST> | No       | Value to use for the `pi_hole_host` tag.            | 
 | PI_HOLE_API_TOKEN  | ``                      | Yes      | API Token for accessing PiHole                      |
 | INFLUX_URL         | `http://localhost:8086` | Yes      | Schema, Hostname, & Port of your Influx v2 Instance |
 | INFLUX_ORG         | ``                      | Yes      | What Influx organization to write into              |
@@ -23,7 +24,7 @@ A few environment variables are required to get this up and running.
 
 Below are the metrics that are created from this repository.
 
-All metrics are tagged as `pi_hole_host` with the host value from the `PI_HOLE_HOST` URI.
+All metrics are tagged as `pi_hole_host` with the host value from the `PI_HOLE_HOST_TAG` variable.
 
 `pi_hole`
 

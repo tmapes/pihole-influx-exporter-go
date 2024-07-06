@@ -25,21 +25,21 @@ func main() {
 
 func processMetricChan(metricChan chan map[string]interface{}, done chan struct{}) {
 	influxClient := influx.NewClient()
+	tagPiHoleHost := determineHostTag()
 	for {
 		select {
 		case <-done:
 			return
 		case m := <-metricChan:
-			go handleMetricMap(influxClient, m)
+			go handleMetricMap(influxClient, tagPiHoleHost, m)
 		}
 	}
 }
 
-func handleMetricMap(client *influx.Client, metricMap map[string]interface{}) {
+func handleMetricMap(client *influx.Client, tagPiHoleHost string, metricMap map[string]interface{}) {
 	metrics := make([]influx.Metric, 0)
 	timestamp := time.Now().UnixNano()
 
-	tagPiHoleHost := "pi-hole"
 	// create the root pi_hole metric
 	piHoleMetric := influx.NewMetric("pi_hole", timestamp)
 	_ = piHoleMetric.WithTag("pi_hole_host", tagPiHoleHost)
@@ -126,6 +126,17 @@ func handleSignals(done chan struct{}) {
 	recv := <-signals
 	log.Printf("%s received, shutting down.", recv.String())
 	close(done)
+}
+
+func determineHostTag() string {
+	if hostTag, set := os.LookupEnv("PI_HOLE_HOST_TAG"); set {
+		return hostTag
+	}
+	piHoleHost, set := os.LookupEnv("PI_HOLE_HOST")
+	if !set {
+		return "http://localhost:8086"
+	}
+	return piHoleHost
 }
 
 func queryPiHole(done chan struct{}) chan map[string]interface{} {
