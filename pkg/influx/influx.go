@@ -33,7 +33,7 @@ func NewClient() *Client {
 	var token string
 	var org string
 	var bucket string
-	var gzipCompression = false
+	var gzipCompression = true
 	var ok bool
 	if token, ok = os.LookupEnv("INFLUX_TOKEN"); !ok {
 		panic("INFLUX_TOKEN not set!")
