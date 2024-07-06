@@ -1,6 +1,7 @@
 package influx
 
 import (
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -139,18 +140,20 @@ func (g gzipCompressedClient) Send(points []Metric) error {
 	}
 
 	dataReader := strings.NewReader(strings.Join(strs, "\n"))
-	bodyReader, httpWriter := io.Pipe()
-	defer handleBodyClose(bodyReader)
-	gzipWriter := gzip.NewWriter(httpWriter)
-	defer handleBodyClose(gzipWriter)
-	compressedByteCount, _ := io.Copy(gzipWriter, dataReader)
-	request, err := http.NewRequest(http.MethodPost, g.url, bodyReader)
+	var b bytes.Buffer
+	gz := gzip.NewWriter(&b)
+	if _, err := dataReader.WriteTo(gz); err != nil {
+		return err
+	}
+	if err := gz.Close(); err != nil {
+		return err
+	}
+	request, err := http.NewRequest(http.MethodPost, g.url, bytes.NewReader(b.Bytes()))
 	if err != nil {
 		return err
 	}
 	request.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	request.Header.Set("Content-Encoding", "gzip")
-	request.Header.Set("Content-length", fmt.Sprintf("%d", compressedByteCount))
 	request.Header.Set("Authorization", g.authorizationValue)
 	response, err := g.httpClient.Do(request)
 	if err != nil {
