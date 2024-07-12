@@ -1,6 +1,8 @@
 package main
 
 import (
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 	"log"
 	"os"
 	"os/signal"
@@ -24,100 +26,113 @@ func main() {
 }
 
 func processMetricChan(metricChan chan map[string]interface{}, done chan struct{}) {
-	influxClient := influx.NewClient()
+	influxClient, writeAPI := influx.NewV2Client()
 	tagPiHoleHost := determineHostTag()
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case err := <-writeAPI.Errors():
+				log.Println("influx write error:", err)
+			}
+		}
+	}()
 	for {
 		select {
 		case <-done:
+			writeAPI.Flush()
+			influxClient.Close()
 			return
 		case m := <-metricChan:
-			go handleMetricMap(influxClient, tagPiHoleHost, m)
+			go handleMetricMap(writeAPI, tagPiHoleHost, m)
 		}
 	}
 }
 
-func handleMetricMap(client *influx.Client, tagPiHoleHost string, metricMap map[string]interface{}) {
-	metrics := make([]influx.Metric, 0)
-	timestamp := time.Now().UnixNano()
+func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[string]interface{}) {
+	timestamp := time.Now()
 
 	// create the root pi_hole metric
-	piHoleMetric := influx.NewMetric("pi_hole", timestamp)
-	_ = piHoleMetric.WithTag("pi_hole_host", tagPiHoleHost)
-	_ = piHoleMetric.WithIntField("ads_blocked_today", int(metricMap["ads_blocked_today"].(float64)))
-	_ = piHoleMetric.WithIntField("queries_cached", int(metricMap["queries_cached"].(float64)))
-	_ = piHoleMetric.WithIntField("queries_forwarded", int(metricMap["queries_forwarded"].(float64)))
-	_ = piHoleMetric.WithIntField("dns_queries_all_replies", int(metricMap["dns_queries_all_replies"].(float64)))
-	_ = piHoleMetric.WithIntField("dns_queries_all_types", int(metricMap["dns_queries_all_types"].(float64)))
-	_ = piHoleMetric.WithIntField("dns_queries_today", int(metricMap["dns_queries_today"].(float64)))
-	_ = piHoleMetric.WithIntField("domains_being_blocked", int(metricMap["domains_being_blocked"].(float64)))
-	_ = piHoleMetric.WithIntField("unique_clients", int(metricMap["unique_clients"].(float64)))
-	_ = piHoleMetric.WithIntField("unique_domains", int(metricMap["unique_domains"].(float64)))
-	_ = piHoleMetric.WithFloatField("ads_percentage_today", metricMap["ads_percentage_today"].(float64))
-	metrics = append(metrics, piHoleMetric)
+	piHoleMetric := influxdb2.NewPointWithMeasurement("pi_hole").
+		SetTime(timestamp).
+		AddField("ads_blocked_today", int(metricMap["ads_blocked_today"].(float64))).
+		AddField("queries_cached", int(metricMap["queries_cached"].(float64))).
+		AddField("queries_forwarded", int(metricMap["queries_forwarded"].(float64))).
+		AddField("dns_queries_all_replies", int(metricMap["dns_queries_all_replies"].(float64))).
+		AddField("dns_queries_all_types", int(metricMap["dns_queries_all_types"].(float64))).
+		AddField("dns_queries_today", int(metricMap["dns_queries_today"].(float64))).
+		AddField("domains_being_blocked", int(metricMap["domains_being_blocked"].(float64))).
+		AddField("unique_clients", int(metricMap["unique_clients"].(float64))).
+		AddField("unique_domains", int(metricMap["unique_domains"].(float64))).
+		AddField("ads_percentage_today", metricMap["ads_percentage_today"].(float64))
+	writeAPI.WritePoint(piHoleMetric)
 
 	// create the "pi_hole_top_sources" metrics
 	topSources := metricMap["top_sources"].(map[string]interface{})
 	for topSource, count := range topSources {
 		hostnameAndIpAddress := strings.Split(topSource, "|")
-		topSourceMetric := influx.NewMetric("pi_hole_top_sources", timestamp)
-		_ = topSourceMetric.WithTag("pi_hole_host", tagPiHoleHost)
-		_ = topSourceMetric.WithTag("host", hostnameAndIpAddress[0])
-		_ = topSourceMetric.WithTag("ip_address", hostnameAndIpAddress[1])
-		_ = topSourceMetric.WithIntField("count", int(count.(float64)))
-		metrics = append(metrics, topSourceMetric)
+		topSourceMetric := influxdb2.NewPointWithMeasurement("pi_hole_top_sources").
+			SetTime(timestamp).
+			AddTag("pi_hole_host", tagPiHoleHost).
+			AddTag("host", hostnameAndIpAddress[0]).
+			AddTag("ip_address", hostnameAndIpAddress[1]).
+			AddField("count", int(count.(float64)))
+		writeAPI.WritePoint(topSourceMetric)
 	}
 
 	// create the "pi_hole_query_types" metrics
 	queryTypes := metricMap["querytypes"].(map[string]interface{})
 	for queryType, percentage := range queryTypes {
-		queryTypeMetric := influx.NewMetric("pi_hole_query_types", timestamp)
-		_ = queryTypeMetric.WithTag("pi_hole_host", tagPiHoleHost)
-		_ = queryTypeMetric.WithTag("type", queryType)
-		_ = queryTypeMetric.WithFloatField("percentage", percentage.(float64))
-		metrics = append(metrics, queryTypeMetric)
+		queryTypeMetric := influxdb2.NewPointWithMeasurement("pi_hole_query_types").
+			SetTime(timestamp).
+			AddTag("pi_hole_host", tagPiHoleHost).
+			AddTag("type", queryType).
+			AddField("percentage", percentage.(float64))
+		writeAPI.WritePoint(queryTypeMetric)
 	}
 
 	// create the "pi_hole_forward_destinations" metrics
 	forwardDestinations := metricMap["forward_destinations"].(map[string]interface{})
 	for forwardDestination, percentage := range forwardDestinations {
 		hostnameAndIpAddress := strings.Split(forwardDestination, "|")
-		forwardDestinationMetric := influx.NewMetric("pi_hole_forward_destinations", timestamp)
-		_ = forwardDestinationMetric.WithTag("pi_hole_host", tagPiHoleHost)
-		_ = forwardDestinationMetric.WithTag("host", hostnameAndIpAddress[0])
-		_ = forwardDestinationMetric.WithTag("ip_address", hostnameAndIpAddress[1])
-		_ = forwardDestinationMetric.WithFloatField("percentage", percentage.(float64))
-		metrics = append(metrics, forwardDestinationMetric)
+		forwardDestinationMetric := influxdb2.NewPointWithMeasurement("pi_hole_forward_destinations").
+			SetTime(timestamp).
+			AddTag("pi_hole_host", tagPiHoleHost).
+			AddTag("host", hostnameAndIpAddress[0]).
+			AddTag("ip_address", hostnameAndIpAddress[1]).
+			AddField("percentage", percentage.(float64))
+		writeAPI.WritePoint(forwardDestinationMetric)
 	}
 
 	// create the "pi_hole_top_ads" metrics
 	topAds := metricMap["top_ads"].(map[string]interface{})
 	for topAd, count := range topAds {
-		topAdMetric := influx.NewMetric("pi_hole_top_ads", timestamp)
-		_ = topAdMetric.WithTag("pi_hole_host", tagPiHoleHost)
-		_ = topAdMetric.WithTag("host", topAd)
-		_ = topAdMetric.WithIntField("count", int(count.(float64)))
-		metrics = append(metrics, topAdMetric)
+		topAdMetric := influxdb2.NewPointWithMeasurement("pi_hole_top_ads").
+			SetTime(timestamp).
+			AddTag("pi_hole_host", tagPiHoleHost).
+			AddTag("host", topAd).
+			AddField("count", int(count.(float64)))
+		writeAPI.WritePoint(topAdMetric)
 	}
 
 	// create the "pi_hole_top_queries" metrics
 	topQueries := metricMap["top_queries"].(map[string]interface{})
 	for host, count := range topQueries {
-		topAdMetric := influx.NewMetric("pi_hole_top_queries", timestamp)
-		_ = topAdMetric.WithTag("pi_hole_host", tagPiHoleHost)
-		_ = topAdMetric.WithTag("host", host)
-		_ = topAdMetric.WithIntField("count", int(count.(float64)))
-		metrics = append(metrics, topAdMetric)
+		topQueryMetric := influxdb2.NewPointWithMeasurement("pi_hole_top_queries").
+			SetTime(timestamp).
+			AddTag("pi_hole_host", tagPiHoleHost).
+			AddTag("host", host).
+			AddField("count", int(count.(float64)))
+		writeAPI.WritePoint(topQueryMetric)
 	}
 
 	// create the "pi_hole_gravity" metric
-	gravityMetric := influx.NewMetric("pi_hole_gravity", timestamp)
-	_ = gravityMetric.WithTag("pi_hole_host", tagPiHoleHost)
-	_ = gravityMetric.WithIntField("updated", int(metricMap["gravity_last_updated"].(map[string]interface{})["absolute"].(float64)))
-	metrics = append(metrics, gravityMetric)
-
-	if err := client.Send(metrics); err != nil {
-		log.Println(err)
-	}
+	gravityMetric := influxdb2.NewPointWithMeasurement("pi_hole_gravity").
+		SetTime(timestamp).
+		AddTag("pi_hole_host", tagPiHoleHost).
+		AddField("updated", int(metricMap["gravity_last_updated"].(map[string]interface{})["absolute"].(float64)))
+	writeAPI.WritePoint(gravityMetric)
 }
 
 func handleSignals(done chan struct{}) {
