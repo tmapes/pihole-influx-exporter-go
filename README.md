@@ -9,16 +9,16 @@ Note, this requires using an Influx Database running v2. It is **NOT** compatibl
 
 A few environment variables are required to get this up and running.
 
-| Name               | Default                   | Required | Description                                         |
-|--------------------|---------------------------|----------|-----------------------------------------------------|
-| PI_HOLE_HOST       | `http://pi.hole`          | Yes      | Hostname & Port of your PiHole                      |
-| PI_HOLE_HOST_TAG   | `<value of PI_HOLE_HOST>` | No       | Value to use for the `pi_hole_host` tag.            | 
-| PI_HOLE_API_TOKEN  | `<empty>`                 | Yes      | API Token for accessing PiHole                      |
-| INFLUX_URL         | `http://localhost:8086`   | Yes      | Schema, Hostname, & Port of your Influx v2 Instance |
-| INFLUX_ORG         | `<empty>`                 | Yes      | What Influx organization to write into              |
-| INFLUX_BUCKET      | `<empty>`                 | Yes      | What Influx bucket to write into                    |
-| INFLUX_TOKEN       | `<empty>`                 | Yes      | What Influx token to use for authentication         |
-| INFLUX_ENABLE_GZIP | `true`                    | No       | Enable GZIP body compression for Influx Requests    |
+| Name               | Default                 | Required | Description                                         |
+|--------------------|-------------------------|----------|-----------------------------------------------------|
+| PI_HOLE_HOST       | `http://pi.hole`        | Yes      | Hostname & Port of your PiHole                      |
+| PI_HOLE_HOST_TAG   | `localhost:8086`        | No       | Value to use for the `pi_hole_host` tag.            | 
+| PI_HOLE_API_TOKEN  | `<empty>`               | Yes      | API Token for accessing PiHole                      |
+| INFLUX_URL         | `http://localhost:8086` | Yes      | Schema, Hostname, & Port of your Influx v2 Instance |
+| INFLUX_ORG         | `<empty>`               | Yes      | What Influx organization to write into              |
+| INFLUX_BUCKET      | `<empty>`               | Yes      | What Influx bucket to write into                    |
+| INFLUX_TOKEN       | `<empty>`               | Yes      | What Influx token to use for authentication         |
+| INFLUX_ENABLE_GZIP | `true`                  | No       | Enable GZIP body compression for Influx Requests    |
 
 ### Metrics
 

@@ -45,7 +45,7 @@ func determineHostTag() string {
 	}
 	piHoleHost, set := os.LookupEnv("PI_HOLE_HOST")
 	if !set {
-		return "http://localhost:8086"
+		return "localhost:8086"
 	}
 	return piHoleHost
 }
