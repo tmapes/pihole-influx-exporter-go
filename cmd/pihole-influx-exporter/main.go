@@ -26,7 +26,7 @@ func main() {
 }
 
 func processMetricChan(metricChan chan map[string]interface{}, done chan struct{}) {
-	influxClient, writeAPI := influx.NewV2Client()
+	influxClient, writeAPI := influx.NewClient()
 	tagPiHoleHost := determineHostTag()
 	go func() {
 		for {

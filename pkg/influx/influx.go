@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func NewV2Client() (influxdb2.Client, api.WriteAPI) {
+func NewClient() (influxdb2.Client, api.WriteAPI) {
 	var influxUrl string
 	var token string
 	var org string
