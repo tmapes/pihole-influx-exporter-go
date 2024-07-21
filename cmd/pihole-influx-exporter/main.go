@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
+	"github.com/urfave/cli/v2"
 	"log"
 	"os"
 	"os/signal"
+	"pihole-influx-exporter-go/pkg/config"
 	"pihole-influx-exporter-go/pkg/influx"
 	"pihole-influx-exporter-go/pkg/pihole"
 	"strings"
@@ -14,19 +17,98 @@ import (
 )
 
 func main() {
+	app := cli.NewApp()
+
+	app.Action = run
+	app.Name = "pihole-influx-exporter"
+
+	app.Flags = []cli.Flag{
+
+		// PiHole Flags
+		&cli.StringFlag{
+			EnvVars:  []string{"PI_HOLE_TOKEN"},
+			FilePath: "/run/secrets/pi_hole_token,/pi_hole_token",
+			Name:     "pihole.token",
+			Usage:    "set token used for making PiHole API requests",
+			Required: true,
+		},
+		&cli.StringFlag{
+			EnvVars:  []string{"PI_HOLE_BASE_URL"},
+			FilePath: "/run/secrets/pi_hole_base_url,/pi_hole_base_url",
+			Name:     "pihole.base_url",
+			Usage:    "set base url for the PiHole to query for metrics",
+			Value:    "http://127.0.0.1:8086",
+		},
+
+		// Influx Flags
+		&cli.StringFlag{
+			EnvVars:  []string{"INFLUX_BASE_URL"},
+			FilePath: "/run/secrets/influx_base_url,/influx_base_url",
+			Name:     "influx.base_url",
+			Usage:    "set base url for Influx instance to write metrics into",
+			Value:    "http://127.0.0.1:8086",
+		},
+		&cli.StringFlag{
+			EnvVars:  []string{"INFLUX_BUCKET"},
+			FilePath: "/run/secrets/influx_bucket,/influx_bucket",
+			Name:     "influx.bucket",
+			Usage:    "bucket to sent metrics into",
+			Required: true,
+		},
+		&cli.BoolFlag{
+			EnvVars:  []string{"INFLUX_ENABLE_GZIP"},
+			FilePath: "/run/secrets/influx_enable_gzip,/influx_enable_gzip",
+			Name:     "influx.gzip",
+			Usage:    "enable compression of metrics before sending",
+			Value:    false,
+		},
+		&cli.StringFlag{
+			EnvVars:  []string{"INFLUX_ORG"},
+			FilePath: "/run/secrets/influx_org,/influx_org",
+			Name:     "influx.org",
+			Usage:    "org to sent metrics into",
+			Required: true,
+		},
+		&cli.StringFlag{
+			EnvVars:  []string{"INFLUX_TOKEN"},
+			FilePath: "/run/secrets/influx_token,/influx_token",
+			Name:     "influx.token",
+			Usage:    "token for influx authentication",
+			Required: true,
+		},
+		&cli.StringFlag{
+			EnvVars:  []string{"INFLUX_PI_HOLE_HOST"},
+			FilePath: "/run/secrets/influx_pi_hole_host,/influx_pi_hole_host",
+			Name:     "influx.pi_hole_host",
+			Usage:    "custom tag to use for the pi_hole_host tag, defaults to PI_HOLE_BASE_URL",
+			Value:    "",
+		},
+	}
+
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(c *cli.Context) error {
+	appConfig := config.New(c)
+	if !appConfig.Valid() {
+		return errors.New("provided config was not valid")
+	}
 	done := make(chan struct{})
 	go handleSignals(done)
-	metricChan := queryPiHole(done)
-	go processMetricChan(metricChan, done)
+	metricChan := queryPiHole(appConfig.PiHoleConfig, done)
+	go processMetricChan(appConfig.InfluxConfig, metricChan, done)
 	log.Print("Program started.")
 	<-done
 	close(metricChan)
 	time.Sleep(1 * time.Second)
-	os.Exit(0)
+	return nil
 }
 
-func processMetricChan(metricChan chan map[string]interface{}, done chan struct{}) {
-	influxClient, writeAPI := influx.NewClient()
+func processMetricChan(influxConfig config.InfluxConfig, metricChan chan map[string]interface{}, done chan struct{}) {
+	influxClient, writeAPI := influx.NewClient(influxConfig)
 	go func() {
 		for {
 			select {
@@ -136,9 +218,9 @@ func handleSignals(done chan struct{}) {
 	close(done)
 }
 
-func queryPiHole(done chan struct{}) chan map[string]interface{} {
+func queryPiHole(piHoleConfig config.PiHoleConfig, done chan struct{}) chan map[string]interface{} {
 	ticker := time.NewTicker(1 * time.Minute)
-	piholeClient := pihole.New()
+	piholeClient := pihole.New(piHoleConfig)
 	c := make(chan map[string]interface{})
 	go func() {
 		for {

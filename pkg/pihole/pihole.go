@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
-	"os"
+	"pihole-influx-exporter-go/pkg/config"
 	"time"
 )
 
@@ -16,23 +17,16 @@ type Client struct {
 	httpClient http.Client
 }
 
-func New() *Client {
-	token, ok := os.LookupEnv("PI_HOLE_API_TOKEN")
-	if !ok {
-		panic("PI_HOLE_API_TOKEN not set!")
-	}
-	val, ok := os.LookupEnv("PI_HOLE_HOST")
-	if !ok {
-		val = "http://localhost:8086"
-	}
-
-	clientUrl, err := url.Parse(fmt.Sprintf("%s/admin/api.php", val))
+func New(c config.PiHoleConfig) *Client {
+	clientUrl, err := url.Parse(fmt.Sprintf("%s/admin/api.php", c.BaseUrl))
 	if err != nil {
-		_ = fmt.Errorf("failed to parse %s, %s", val, err)
+		_ = fmt.Errorf("failed to parse %s, %s", c.BaseUrl, err)
 		return nil
 	}
+	log.Printf("PiHole Config | BaseUrl: '%s'", c.BaseUrl)
+
 	query := clientUrl.Query()
-	query.Set("auth", token)
+	query.Set("auth", c.Token)
 	query.Set("summaryRaw", "")
 	query.Set("overTimeData", "")
 	query.Set("topItems", "")
@@ -67,5 +61,10 @@ func (client *Client) GetMetrics() (map[string]interface{}, error) {
 	bytes, _ := io.ReadAll(l.Body)
 	respMap := make(map[string]interface{})
 	err = json.Unmarshal(bytes, &respMap)
+	if len(respMap) == 0 {
+		err = errors.New("pi hole response had no entries")
+		log.Print(err)
+		return nil, err
+	}
 	return respMap, err
 }
