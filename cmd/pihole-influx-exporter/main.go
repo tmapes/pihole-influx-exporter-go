@@ -27,7 +27,6 @@ func main() {
 
 func processMetricChan(metricChan chan map[string]interface{}, done chan struct{}) {
 	influxClient, writeAPI := influx.NewClient()
-	tagPiHoleHost := determineHostTag()
 	go func() {
 		for {
 			select {
@@ -45,12 +44,12 @@ func processMetricChan(metricChan chan map[string]interface{}, done chan struct{
 			influxClient.Close()
 			return
 		case m := <-metricChan:
-			go handleMetricMap(writeAPI, tagPiHoleHost, m)
+			go handleMetricMap(writeAPI, m)
 		}
 	}
 }
 
-func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[string]interface{}) {
+func handleMetricMap(writeAPI api.WriteAPI, metricMap map[string]interface{}) {
 	timestamp := time.Now()
 
 	// create the root pi_hole metric
@@ -74,7 +73,6 @@ func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[
 		hostnameAndIpAddress := strings.Split(topSource, "|")
 		topSourceMetric := influxdb2.NewPointWithMeasurement("pi_hole_top_sources").
 			SetTime(timestamp).
-			AddTag("pi_hole_host", tagPiHoleHost).
 			AddTag("host", hostnameAndIpAddress[0]).
 			AddTag("ip_address", hostnameAndIpAddress[1]).
 			AddField("count", int(count.(float64)))
@@ -86,7 +84,6 @@ func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[
 	for queryType, percentage := range queryTypes {
 		queryTypeMetric := influxdb2.NewPointWithMeasurement("pi_hole_query_types").
 			SetTime(timestamp).
-			AddTag("pi_hole_host", tagPiHoleHost).
 			AddTag("type", queryType).
 			AddField("percentage", percentage.(float64))
 		writeAPI.WritePoint(queryTypeMetric)
@@ -98,7 +95,6 @@ func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[
 		hostnameAndIpAddress := strings.Split(forwardDestination, "|")
 		forwardDestinationMetric := influxdb2.NewPointWithMeasurement("pi_hole_forward_destinations").
 			SetTime(timestamp).
-			AddTag("pi_hole_host", tagPiHoleHost).
 			AddTag("host", hostnameAndIpAddress[0]).
 			AddTag("ip_address", hostnameAndIpAddress[1]).
 			AddField("percentage", percentage.(float64))
@@ -110,7 +106,6 @@ func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[
 	for topAd, count := range topAds {
 		topAdMetric := influxdb2.NewPointWithMeasurement("pi_hole_top_ads").
 			SetTime(timestamp).
-			AddTag("pi_hole_host", tagPiHoleHost).
 			AddTag("host", topAd).
 			AddField("count", int(count.(float64)))
 		writeAPI.WritePoint(topAdMetric)
@@ -121,7 +116,6 @@ func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[
 	for host, count := range topQueries {
 		topQueryMetric := influxdb2.NewPointWithMeasurement("pi_hole_top_queries").
 			SetTime(timestamp).
-			AddTag("pi_hole_host", tagPiHoleHost).
 			AddTag("host", host).
 			AddField("count", int(count.(float64)))
 		writeAPI.WritePoint(topQueryMetric)
@@ -130,7 +124,6 @@ func handleMetricMap(writeAPI api.WriteAPI, tagPiHoleHost string, metricMap map[
 	// create the "pi_hole_gravity" metric
 	gravityMetric := influxdb2.NewPointWithMeasurement("pi_hole_gravity").
 		SetTime(timestamp).
-		AddTag("pi_hole_host", tagPiHoleHost).
 		AddField("updated", int(metricMap["gravity_last_updated"].(map[string]interface{})["absolute"].(float64)))
 	writeAPI.WritePoint(gravityMetric)
 }
@@ -141,17 +134,6 @@ func handleSignals(done chan struct{}) {
 	recv := <-signals
 	log.Printf("%s received, shutting down.", recv.String())
 	close(done)
-}
-
-func determineHostTag() string {
-	if hostTag, set := os.LookupEnv("PI_HOLE_HOST_TAG"); set {
-		return hostTag
-	}
-	piHoleHost, set := os.LookupEnv("PI_HOLE_HOST")
-	if !set {
-		return "http://localhost:8086"
-	}
-	return piHoleHost
 }
 
 func queryPiHole(done chan struct{}) chan map[string]interface{} {
