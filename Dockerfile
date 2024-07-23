@@ -1,4 +1,4 @@
-FROM golang:1.22.5-alpine@sha256:0e90634e2a706a24f1176483f7315e019738d53a188b7a57c1f58426999bb0ee
+FROM golang:1.22.5-alpine@sha256:63be73fdea9899269e98a4ad8fdebbdba6819bd7d30eae97726739a548448541
 
 COPY pihole-influx-exporter /pihole-influx-exporter
 
