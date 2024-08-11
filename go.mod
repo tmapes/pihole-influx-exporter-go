@@ -4,7 +4,7 @@ go 1.22.4
 
 require (
 	github.com/influxdata/influxdb-client-go/v2 v2.13.0
-	github.com/urfave/cli/v2 v2.27.3
+	github.com/urfave/cli/v2 v2.27.4
 )
 
 require (
