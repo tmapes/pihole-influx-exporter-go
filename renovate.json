@@ -6,5 +6,8 @@
         "group:monorepos",
         "group:recommended",
         "group:allNonMajor"
-    ]
+    ],
+    "digest": {
+        "automerge": true
+    }
 }
