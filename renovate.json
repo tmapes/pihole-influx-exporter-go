@@ -1,13 +1,6 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": [
-        "config:best-practices",
-        "config:recommended",
-        "group:monorepos",
-        "group:recommended",
-        "group:allNonMajor"
-    ],
-    "digest": {
-        "automerge": true
-    }
+        "github>tmapes/renovate-config"
+    ]
 }
